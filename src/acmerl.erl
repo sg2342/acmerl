@@ -4,7 +4,7 @@
         , account_info/1, account_key/1
         , import_account/1, export_account/1
         , new_order/3
-        , order_authorizations/2
+        , order_authorizations/3
         ]).
 -export_type([ client_opts/0, client/0
              , account/0
@@ -116,15 +116,16 @@ new_order(
         {error, _} = Err -> Err
     end.
 
--spec order_authorizations(client(), acmerl_json:json_term()) ->
+-spec order_authorizations(client(), account(), acmerl_json:json_term()) ->
     maybe([acmerl_json:json_term()]).
 order_authorizations(
-  #client{http_client = HttpClient},
+  #client{ } = Client,
+  #account{ } = Account,
   #{<<"authorizations">> := Authorizations}
  ) ->
     lists:foldl(
       fun(AuthzUrl, {ok, Acc}) ->
-        case acmerl_http:get(HttpClient, AuthzUrl) of
+        case post_as_get(Client, Account, AuthzUrl) of
             {ok, _, Authz} -> {ok, [Authz | Acc]};
             {error, _} = Err -> Err
         end;
@@ -147,3 +148,14 @@ post(
   Url, Payload, Key, JwsHeaders
  ) ->
     acmerl_http:post(HttpClient, NonceUrl, Url, Payload, Key, JwsHeaders).
+
+post_as_get(
+  #client{ http_client = HttpClient
+         , directory = #{ <<"newNonce">> := NonceUrl }
+         },
+  #account{ key = AccountKey
+	  , url = AccountUrl },
+  Url
+ ) ->
+    JwsHeaders = #{ <<"kid">> => AccountUrl },
+    acmerl_http:post_as_get(HttpClient, NonceUrl, Url, AccountKey, JwsHeaders).

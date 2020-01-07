@@ -104,7 +104,8 @@ create_order(Config) ->
                   ],
     OrderOpts = #{<<"identifiers">> => Identifiers},
     {ok, Order} = acmerl:new_order(Client, Account, OrderOpts),
-    {ok, Authorizations} = acmerl:order_authorizations(Client, Order),
+    {ok, Authorizations} = acmerl:order_authorizations(Client, Account, Order),
+    logger:error(Authorizations),
     ?assertEqual(length(Identifiers), length(Authorizations)),
 
     ok.

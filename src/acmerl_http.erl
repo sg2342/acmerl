@@ -4,6 +4,7 @@
         , request_json/4
         , get/2
         , post/6
+	, post_as_get/5
         ]).
 -export_type([client/0, http_method/0, http_headers/0, http_result/0]).
 -define(ACCEPT_HEADER, {<<"accept">>, <<"application/json;text/json;*/*">>}).
@@ -78,13 +79,25 @@ get(Client, Url) -> request_json(Client, 'GET', Url, <<>>).
     when Client :: client()
        , NonceUrl :: binary()
        , Url :: binary()
-       , Payload :: acmerl_json:json_term()
+       , Payload :: acmerl_json:json_term() | empty
        , AccountKey :: acmerl_jose:key()
        , JwsHeaders :: #{binary() => acmerl_json:json_term()}
        , Result :: json_request_result().
 post(Client, NonceUrl, Url, Payload, AccountKey, JwsHeaders) ->
     with_nonce(Client, NonceUrl, fun(Nonce) ->
         post1(Client, Nonce, Url, Payload, AccountKey, JwsHeaders)
+    end).
+
+-spec post_as_get(Client, NonceUrl, Url, AccountKey, JwsHeaders) -> Result
+    when Client :: client()
+       , NonceUrl :: binary()
+       , Url :: binary()
+       , AccountKey :: acmerl_jose:key()
+       , JwsHeaders :: #{binary() => acmerl_json:json_term()}
+       , Result :: json_request_result().
+post_as_get(Client, NonceUrl, Url, AccountKey, JwsHeaders) ->
+    with_nonce(Client, NonceUrl, fun(Nonce) ->
+        post_as_get1(Client, Nonce, Url, AccountKey, JwsHeaders)
     end).
 
 % Private
@@ -123,6 +136,17 @@ new_nonce(Client, NonceUrl) ->
         {error, _} = Err ->
             Err
     end.
+
+post_as_get1(
+  #client{ json_codec = JsonCodec } = Client,
+  Nonce, Url, AccountKey, JwsHeaders
+ ) ->
+    EncodedPayload = <<>>,
+    Headers = JwsHeaders#{ <<"url">> => Url
+                         , <<"nonce">> => Nonce
+                         },
+    Body = acmerl_jose:sign(EncodedPayload, AccountKey, Headers, JsonCodec),
+    request_json(Client, 'POST', Url, Body).
 
 post1(
   #client{ json_codec = JsonCodec } = Client,
