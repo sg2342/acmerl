@@ -70,7 +70,7 @@ import_key(_) ->
       Key :: key()
            | {jwk, acmerl_json:json_term()}.
 thumbprint(#key{} = Key, JsonCodec) ->
-    thumbprint(export_key(Key, #{}), JsonCodec);
+    thumbprint({jwk, export_key(Key, #{})}, JsonCodec);
 thumbprint({jwk, Jwk}, JsonCodec) ->
     CanonKey = strip_jwk_for_thumbprint(Jwk),
     Json = acmerl_json:encode(CanonKey, JsonCodec),
