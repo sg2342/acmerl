@@ -17,7 +17,7 @@ import_export(_) ->
         Key = acmerl_jose:generate_key(Algo),
         Message = crypto:strong_rand_bytes(16),
 
-        acmerl_jose:sign(Message, Key, #{}, acmerl_json_jsx:new()),
+        acmerl_jose:sign(Message, Key, #{}, acmerl_json_jsone:new()),
 
         ExportedKey = acmerl_jose:export_key(Key, #{}),
         ?assertEqual({error, malformed}, acmerl_jose:import_key(ExportedKey)),
@@ -25,12 +25,12 @@ import_export(_) ->
         FullExportedKey = acmerl_jose:export_key(Key, #{ with_algo => true
                                                        , with_private => true
                                                        }),
-        FullExportedKeyBin = jsx:encode(FullExportedKey),
-        FullExportedKey2 = jsx:decode(FullExportedKeyBin, [return_maps]),
+        FullExportedKeyBin = jsone:encode(FullExportedKey),
+        FullExportedKey2 = jsone:decode(FullExportedKeyBin),
         ?assertEqual(FullExportedKey, FullExportedKey2),
 
         {ok, ImportedKey} = acmerl_jose:import_key(FullExportedKey),
-        acmerl_jose:sign(Message, ImportedKey, #{}, acmerl_json_jsx:new()),
+        acmerl_jose:sign(Message, ImportedKey, #{}, acmerl_json_jsone:new()),
 
         ?assertEqual(Key, ImportedKey)
       end,
@@ -55,9 +55,9 @@ import_examples(Config) ->
         ct:pal("Using key ~s", [FullPath]),
 
         {ok, JWK} = file:read_file(FullPath),
-        {ok, Key} = acmerl_jose:import_key(jsx:decode(JWK, [return_maps])),
+        {ok, Key} = acmerl_jose:import_key(jsone:decode(JWK)),
 
-        acmerl_jose:sign(Message, Key, #{}, acmerl_json_jsx:new())
+        acmerl_jose:sign(Message, Key, #{}, acmerl_json_jsone:new())
       end,
       KeyFiles
      ),
@@ -69,9 +69,9 @@ thumbprint(Config) ->
     DataDir = proplists:get_value(data_dir, Config),
     FullPath = filename:join(DataDir, "rfc7638.section-3.1.json"),
     {ok, FileContent} = file:read_file(FullPath),
-    Jwk = jsx:decode(FileContent, [return_maps]),
+    Jwk = jsone:decode(FileContent),
 
-    Thumbprint = acmerl_jose:thumbprint({jwk, Jwk}, acmerl_json_jsx:new()),
+    Thumbprint = acmerl_jose:thumbprint({jwk, Jwk}, acmerl_json_jsone:new()),
     ?assertEqual(<<"NzbLsXh8uDCcd-6MNwXF4W_7noWXFZAfHkxZsRGC9Xs">>, Thumbprint),
 
     ok.

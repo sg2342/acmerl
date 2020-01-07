@@ -22,7 +22,7 @@ groups() ->
     ].
 
 init_per_suite(Config) ->
-    {ok, Apps} = start_apps([jsx, inets, acmerl]),
+    {ok, Apps} = start_apps([jsone, inets, acmerl]),
     [{apps, Apps} | Config].
 
 end_per_suite(Config) ->
@@ -78,7 +78,7 @@ create_account_from_existing_key(Config) ->
         KeyFileName = iolist_to_binary(io_lib:format("~s.json", [Algo])),
         KeyFilePath = filename:join(DataDir, KeyFileName),
         {ok, KeyFileContent} = file:read_file(KeyFilePath),
-        JWK = jsx:decode(KeyFileContent, [return_maps]),
+        JWK = jsone:decode(KeyFileContent),
 
         {ok, Key} = acmerl_jose:import_key(JWK),
         ?assertMatch(
@@ -113,8 +113,8 @@ import_export_account(Config) ->
     Client = proplists:get_value(client, Config),
     Account = proplists:get_value(account, Config),
 
-    ExportedAccount = jsx:encode(acmerl:export_account(Account)),
-    {ok, ImportedAccount} = acmerl:import_account(jsx:decode(ExportedAccount, [return_maps])),
+    ExportedAccount = jsone:encode(acmerl:export_account(Account)),
+    {ok, ImportedAccount} = acmerl:import_account(jsone:decode(ExportedAccount)),
 
     Identifiers = [ #{ <<"type">> => <<"dns">>
                      , <<"value">> => <<"example.com">>
@@ -152,7 +152,7 @@ create_account(Config) ->
     DataDir = proplists:get_value(data_dir, Config),
     KeyFilePath = filename:join(DataDir, "ES256.json"),
     {ok, KeyFileContent} = file:read_file(KeyFilePath),
-    JWK = jsx:decode(KeyFileContent, [return_maps]),
+    JWK = jsone:decode(KeyFileContent),
     {ok, Key} = acmerl_jose:import_key(JWK),
 
     AccountOpts = #{<<"termsOfServiceAgreed">> => true},
@@ -162,7 +162,7 @@ create_account(Config) ->
 
 client_opts() ->
     #{ http_module => acmerl_http_inets
-     , json_module => acmerl_json_jsx
+     , json_module => acmerl_json_jsone
      }.
 
 % From: `rebar3 as test shell`
@@ -174,7 +174,7 @@ gen_keys() ->
         KeyFileName = iolist_to_binary(io_lib:format("~s.json", [Algo])),
         KeyFilePath = filename:join("test/acmerl_SUITE_data", KeyFileName),
         Key = acmerl_jose:generate_key(Algo),
-        JWK = jsx:encode(acmerl_jose:export_key(Key, #{ with_algo => true
+        JWK = jsone:encode(acmerl_jose:export_key(Key, #{ with_algo => true
                                                       , with_private => true
                                                       })),
         ok = file:write_file(KeyFilePath, JWK)
