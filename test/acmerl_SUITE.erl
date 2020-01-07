@@ -22,7 +22,7 @@ groups() ->
     ].
 
 init_per_suite(Config) ->
-    {ok, Apps} = start_apps([jsx, hackney, acmerl]),
+    {ok, Apps} = start_apps([jsx, inets, acmerl]),
     [{apps, Apps} | Config].
 
 end_per_suite(Config) ->
@@ -161,7 +161,7 @@ create_account(Config) ->
     [{account, Account} | Config].
 
 client_opts() ->
-    #{ http_module => acmerl_http_hackney
+    #{ http_module => acmerl_http_inets
      , json_module => acmerl_json_jsx
      }.
 
