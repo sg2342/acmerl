@@ -6,6 +6,7 @@
         , new_order/3
         , order_authorizations/3
         , deploy_challenges/4
+        , validate_challenges/4
         ]).
 -export_type([ client_opts/0, client/0
              , account/0
@@ -160,6 +161,20 @@ deploy_challenges(
       Authorizations
      ).
 
+-spec validate_challenges(client(), account(), acmerl_challenge:handler(),
+			  [acmerl_challenge:deployed()]) ->
+	  ok | {error, term()}.
+validate_challenges(
+  #client {} = Client,
+  #account {} = Account,
+  Handler, Deployed
+) ->
+    R = lists:foldl(
+	  fun({Url, _}, ok) -> poll_validation(0, Client, Account, Url);
+	     (_, {error, _} = Err) -> Err end, ok, Deployed),
+    remove_deployed(Deployed, Handler),
+    R.
+
 % Private
 
 create_account_key({new_key, AlgoName}) -> acmerl_jose:generate_key(AlgoName);
@@ -186,6 +201,19 @@ post_as_get(
  ) ->
     JwsHeaders = #{ <<"kid">> => AccountUrl },
     acmerl_http:post_as_get(HttpClient, NonceUrl, Url, AccountKey, JwsHeaders).
+
+-define(MAX_POLL_COUNT, 5).
+poll_validation(N, _, _, _) when N > ?MAX_POLL_COUNT ->
+    {error, max_poll_count_exceeded};
+poll_validation(N, Client, Account, Url) ->
+    timer:sleep(timer:seconds(N)),
+    case post_as_get(Client, Account, Url) of
+	{ok, _, #{<<"status">> := <<"valid">>}} -> ok;
+	{ok, _, #{<<"status">> := <<"pending">>}} ->
+	    poll_validation(N + 1, Client, Account, Url);
+	{ok, _, R} -> {error, {unexpected, R}};
+	{error, _} = Err -> Err
+    end.
 
 remove_deployed(Deployed, Handler) ->
     lists:foreach(

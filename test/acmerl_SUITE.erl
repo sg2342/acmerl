@@ -110,6 +110,8 @@ create_order(Config) ->
     ?assertEqual(length(Identifiers), length(Authorizations)),
     {ok, Deployed} = acmerl:deploy_challenges(Account, ChallengeHandler,
 					      JsonCodec, Authorizations),
+    {error, max_poll_count_exceeded} =
+	acmerl:validate_challenges(Client, Account, ChallengeHandler, Deployed),
     ok.
 
 import_export_account(Config) ->
