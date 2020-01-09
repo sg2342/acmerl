@@ -16,12 +16,14 @@
                           , Body :: binary()}
                      | {error, term()}.
 -type response_body() :: {json, acmerl_json:json_term()}
+                       | {certificate_chain, binary()}
                        | {unknown, binary()}.
 -type request_error() :: {error, {http, http_headers(), response_body()}}
                        | {error, {network, term()}}.
 -type request_result() :: {ok, http_headers(), response_body()}
                         | request_error().
 -type json_request_result() :: {ok, http_headers(), acmerl_json:json_term()}
+                             | {ok, {certificate_chain, binary()}}
                              | request_error()
                              | {error, invalid_response}.
 
@@ -62,12 +64,14 @@ request(
     end.
 
 -spec request_json(client(), http_method(), binary(), binary()) ->
-    json_request_result().
+    json_request_result() | {ok, {certificate_chain, PEM :: binary()}}.
 request_json(Client, Method, Url, ReqBody) ->
     case request(Client, Method, Url, ReqBody) of
         {ok, Headers, {json, Resp}} -> {ok, Headers, Resp};
         % Hack for empty body
         {ok, Headers, {unknown, <<>>}} -> {ok, Headers, #{}};
+        % Hack for pem result
+        {ok, _Headers, {certificate_chain, _} = R} -> {ok, R};
         {ok, _, _} -> {error, invalid_response};
         {error, _} = Err -> Err
     end.
@@ -118,6 +122,8 @@ parse_response(Headers, Body, JsonCodec) ->
             {json, acmerl_json:decode(Body, JsonCodec)};
         <<"application/problem+json", _/binary>> ->
             {json, acmerl_json:decode(Body, JsonCodec)};
+        <<"application/pem-certificate-chain", _/binary>> ->
+	    {certificate_chain, Body};
         _ ->
             {unknown, Body}
     end.

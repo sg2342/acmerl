@@ -7,6 +7,7 @@
         , order_authorizations/3
         , deploy_challenges/4
         , validate_challenges/4
+	, finalize_and_fetch/4
         ]).
 -export_type([ client_opts/0, client/0
              , account/0
@@ -174,6 +175,24 @@ validate_challenges(
 	     (_, {error, _} = Err) -> Err end, ok, Deployed),
     remove_deployed(Deployed, Handler),
     R.
+-spec finalize_and_fetch(client(), account(),
+			 Order ::acmerl_json:json_term(), CSR :: binary()) ->
+	  maybe(PEM :: binary()).
+finalize_and_fetch(
+  #client {} = Client,
+  #account {} = Account,
+  #{ <<"finalize">> := Url },
+  CSR
+ ) ->
+    case post(Client, Account, Url, #{<<"csr">> => base64url:encode(CSR)}) of
+	{ok, _, #{ <<"status">> := <<"valid">>
+		 , <<"certificate">> := PemUrl }} ->
+	    case post_as_get(Client, Account, PemUrl) of
+		{ok, {certificate_chain, PEM}} -> {ok, PEM};
+		{ok, _, R1} -> {error, {unexpected, R1}};
+		{error, _} = Err1 -> Err1 end;
+	{ok, _, R} -> {error, {unexpected, R}};
+	{error, _} = Err -> Err end.
 
 % Private
 
