@@ -94,6 +94,8 @@ create_account_from_existing_key(Config) ->
 create_order(Config) ->
     Client = proplists:get_value(client, Config),
     Account = proplists:get_value(account, Config),
+    JsonCodec = {acmerl_json_jsone, []},
+    ChallengeHandler = {acmerl_challenge_fail, []},
 
     Identifiers = [ #{ <<"type">> => <<"dns">>
                      , <<"value">> => <<"example.com">>
@@ -105,9 +107,9 @@ create_order(Config) ->
     OrderOpts = #{<<"identifiers">> => Identifiers},
     {ok, Order} = acmerl:new_order(Client, Account, OrderOpts),
     {ok, Authorizations} = acmerl:order_authorizations(Client, Account, Order),
-    logger:error(Authorizations),
     ?assertEqual(length(Identifiers), length(Authorizations)),
-
+    {ok, Deployed} = acmerl:deploy_challenges(Account, ChallengeHandler,
+					      JsonCodec, Authorizations),
     ok.
 
 import_export_account(Config) ->

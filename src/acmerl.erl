@@ -5,6 +5,7 @@
         , import_account/1, export_account/1
         , new_order/3
         , order_authorizations/3
+        , deploy_challenges/4
         ]).
 -export_type([ client_opts/0, client/0
              , account/0
@@ -136,6 +137,29 @@ order_authorizations(
       Authorizations
      ).
 
+-spec deploy_challenges(account(), acmerl_challenge:handler(),
+			acmerl_json:codec(), [acmerl_json:json_term()]) ->
+	  maybe([acmerl_challenge:deployed()]).
+deploy_challenges(
+  #account{ key = AccountKey },
+  Handler, JsonCodec, Authorizations
+) ->
+    Thumbprint = acmerl_jose:thumbprint(AccountKey, JsonCodec),
+    lists:foldl(
+      fun(Auth, {ok, Deployed}) ->
+        case acmerl_challenge:deploy(Handler, Thumbprint, Auth) of
+	    {ok, {_Url, _RemoveArg} = D} -> {ok, [D|Deployed]};
+	    {error, _} = Err ->
+		remove_deployed(Deployed, Handler),
+		Err
+	      end;
+	 (_, {error, _} = Err) ->
+	      Err
+      end,
+      {ok, []},
+      Authorizations
+     ).
+
 % Private
 
 create_account_key({new_key, AlgoName}) -> acmerl_jose:generate_key(AlgoName);
@@ -162,3 +186,11 @@ post_as_get(
  ) ->
     JwsHeaders = #{ <<"kid">> => AccountUrl },
     acmerl_http:post_as_get(HttpClient, NonceUrl, Url, AccountKey, JwsHeaders).
+
+remove_deployed(Deployed, Handler) ->
+    lists:foreach(
+      fun({_Url, RemoveArg}) ->
+	      acmerl_challenge:remove(Handler, RemoveArg)
+      end,
+      Deployed
+     ).
