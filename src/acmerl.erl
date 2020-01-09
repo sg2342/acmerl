@@ -56,7 +56,9 @@ new_account(Client, AccountOpts) ->
       when AccountKeyOpts :: {new_key, acmerl_jose:algo_name()}
                            | {key, acmerl_jose:key()}.
 new_account(
-  #client{ directory = #{ <<"newAccount">> := NewAccountUrl } } = Client,
+  #client{ directory = #{ <<"newAccount">> := NewAccountUrl
+			, <<"newNonce">> := NonceUrl }
+	 , http_client = HttpClient },
   AccountOpts, AccountKeyOpts
  ) ->
     AccountKey = create_account_key(AccountKeyOpts),
@@ -64,7 +66,8 @@ new_account(
                                               , with_algo => false
                                               }),
     ExtraHeaders = #{ <<"jwk">> =>  Jwk},
-    case post(Client, NewAccountUrl, AccountOpts, AccountKey, ExtraHeaders) of
+    case acmerl_http:post(HttpClient, NonceUrl, NewAccountUrl, AccountOpts,
+			  AccountKey, ExtraHeaders) of
         {ok, Headers, Response} ->
             {ok, #account{ url = proplists:get_value(<<"location">>, Headers)
                          , key = AccountKey
@@ -105,13 +108,10 @@ import_account(_) ->
     maybe(acmerl_json:json_term()).
 new_order(
   #client{ directory = #{ <<"newOrder">> := NewOrderUrl } } = Client,
-  #account{ url = AccountUrl
-          , key = AccountKey
-          },
+  #account{ } = Account,
   OrderOpts
  ) ->
-    ExtraHeaders = #{ <<"kid">> => AccountUrl },
-    case post(Client, NewOrderUrl, OrderOpts, AccountKey, ExtraHeaders) of
+    case post(Client, Account, NewOrderUrl, OrderOpts) of
         {ok, _, Order} -> {ok, Order};
         {error, _} = Err -> Err
     end.
@@ -144,10 +144,13 @@ create_account_key({key, Key}) -> Key.
 post(
   #client{ http_client = HttpClient
          , directory = #{ <<"newNonce">> := NonceUrl }
-         },
-  Url, Payload, Key, JwsHeaders
+	 },
+  #account{ key = AccountKey
+	  , url = AccountUrl },
+  Url, Payload
  ) ->
-    acmerl_http:post(HttpClient, NonceUrl, Url, Payload, Key, JwsHeaders).
+    JwsHeaders = #{ <<"kid">> => AccountUrl },
+    acmerl_http:post(HttpClient, NonceUrl, Url, Payload, AccountKey, JwsHeaders).
 
 post_as_get(
   #client{ http_client = HttpClient
