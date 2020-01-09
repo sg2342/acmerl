@@ -8,7 +8,9 @@ request(Method, Url, Headers, Body, _) ->
 	    , Body).
 
 request1(post, Url, Headers, Body) ->
-    resp(httpc:request(post, {Url, Headers, "application/jose+json", Body},
+    ContentT = binary_to_list(proplists:get_value(<<"content-type">>, Headers,
+						  <<"application/jose+json">>)),
+    resp(httpc:request(post, {Url, Headers, ContentT, Body},
 			   [], [{body_format, binary}]));
 request1(Method, Url, Headers, _) ->
     resp(httpc:request(Method, {Url, Headers}, [], [{body_format, binary}])).
