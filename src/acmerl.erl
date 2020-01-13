@@ -170,8 +170,9 @@ validate_challenges(
   #account {} = Account,
   Handler, Deployed
 ) ->
+    MaxPoll = application:get_env(?MODULE, max_poll, 10),
     R = lists:foldl(
-	  fun({Url, _}, ok) -> poll_validation(0, Client, Account, Url);
+	  fun({Url, _}, ok) -> poll_validation(MaxPoll, Client, Account, Url);
 	     (_, {error, _} = Err) -> Err end, ok, Deployed),
     remove_deployed(Deployed, Handler),
     R.
@@ -221,15 +222,23 @@ post_as_get(
     JwsHeaders = #{ <<"kid">> => AccountUrl },
     acmerl_http:post_as_get(HttpClient, NonceUrl, Url, AccountKey, JwsHeaders).
 
--define(MAX_POLL_COUNT, 5).
-poll_validation(N, _, _, _) when N > ?MAX_POLL_COUNT ->
-    {error, max_poll_count_exceeded};
-poll_validation(N, Client, Account, Url) ->
+poll_validation(MaxPoll, Client, Account, Url) ->
+    case post(Client, Account, Url, #{}) of
+	{ok, _, #{<<"status">> := <<"valid">>}} -> ok;
+	{ok, _, #{<<"status">> := <<"pending">>}} ->
+	    poll_validation(1, MaxPoll, Client, Account, Url);
+	{ok, _, R}  -> {error, {unexpected, R}};
+	{error, _} = Err -> Err
+    end.
+
+poll_validation(MaxPoll, MaxPoll, _, _, _) ->
+    {error, max_poll_exceeded};
+poll_validation(N, MaxPoll, Client, Account, Url) ->
     timer:sleep(timer:seconds(N)),
     case post_as_get(Client, Account, Url) of
 	{ok, _, #{<<"status">> := <<"valid">>}} -> ok;
 	{ok, _, #{<<"status">> := <<"pending">>}} ->
-	    poll_validation(N + 1, Client, Account, Url);
+	    poll_validation(N + 1, MaxPoll, Client, Account, Url);
 	{ok, _, R} -> {error, {unexpected, R}};
 	{error, _} = Err -> Err
     end.

@@ -8,7 +8,7 @@
    , public_key
    , base64url
    ]},
-  {env,[]},
+  {env,[{max_poll, 10}]},
   {modules, []},
 
   {maintainers, []},
