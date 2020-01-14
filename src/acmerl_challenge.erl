@@ -4,7 +4,7 @@
 -export_type([remove_arg/0, deploy_arg/0, handler/0, deployed/0]).
 
 -type deployed() :: { Url :: binary(), remove_arg() }.
--type handler() :: {module(), Opts :: term}.
+-type handler() :: { Module :: module(), Opts :: term() }.
 -type remove_arg() :: term().
 -type deploy_arg() :: #{ identifier := binary()
 		       , token := binary()
