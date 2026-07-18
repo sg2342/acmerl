@@ -137,6 +137,12 @@ normalize_key_export_opts(Opts) ->
                 },
     maps:merge(Defaults, Opts).
 
+-if(?OTP_RELEASE =< 27).
+-define(ECPrivateKeyVersion1, 1).
+-else.
+-define(ECPrivateKeyVersion1, ecPrivkeyVer1).
+-endif.
+
 jwk(
   #'RSAPrivateKey'{ version = 'two-prime'
                   , modulus = N
@@ -149,7 +155,7 @@ jwk(
      , <<"e">> => encode_rsa_param(E)
      };
 jwk(
-  #'ECPrivateKey'{ version = 1
+  #'ECPrivateKey'{ version = ?ECPrivateKeyVersion1
                  , publicKey = PublicKey
                  , parameters = {namedCurve, CurveParams}
                  },
@@ -183,7 +189,7 @@ jwk(
                },
     maps:merge(Public, Private);
 jwk(
-  #'ECPrivateKey'{ version = 1
+  #'ECPrivateKey'{ version = ?ECPrivateKeyVersion1
                  , privateKey = PrivateKey
                  } = Key,
   #{with_private := true}
@@ -265,7 +271,7 @@ import_ec1(Algo, Curve, #{ <<"x">> := XB64
     Y = base64url:decode(YB64),
     PublicKey = <<?EC_PUBLIC_MAGIC, X/binary, Y/binary>>,
     PrivateKey = base64url:decode(DB64),
-    SigningKey = #'ECPrivateKey'{ version = 1
+    SigningKey = #'ECPrivateKey'{ version = ?ECPrivateKeyVersion1
                                 , privateKey = PrivateKey
                                 , parameters = {namedCurve, Curve}
                                 , publicKey = PublicKey
