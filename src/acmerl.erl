@@ -5,27 +5,30 @@
         , import_account/1, export_account/1
         , new_order/3
         , order_authorizations/3
-        , deploy_challenges/4
+        , deploy_challenges/3
         , validate_challenges/4
 	, finalize_and_fetch/4
         ]).
 -export_type([ client_opts/0, client/0
-             , account/0
+             , account/0, json_term/0
              ]).
+
+-type json_atom() :: binary() | integer() | float() | boolean().
+-type json_map() :: #{binary() => json_term()}.
+-type json_array() :: [json_term()].
+-type json_term() :: json_atom() | json_map() | json_array().
 
 -type maybe_ok(T) :: {ok, T} | {error, term()}.
 -type client_opts() :: #{ http_module := module()
                         , http_opts => term()
-                        , json_module := module()
-                        , json_opts => term()
                         }.
 
--record(client, { directory :: acmerl_json:json_term()
+-record(client, { directory :: json_term()
                 , http_client :: acmerl_http:client()
                 }).
 -record(account, { url :: binary()
                  , key :: acmerl_jose:key()
-                 , info = #{} :: acmerl_json:json_term()
+                 , info = #{} :: json_term()
                  }).
 
 -opaque client() :: #client{}.
@@ -34,12 +37,9 @@
 % API
 
 -spec new_client(binary(), client_opts()) -> maybe_ok(client()).
-new_client(DirectoryUrl, #{ http_module := HttpMod
-                          , json_module := JsonMod
-                          } = Opts) ->
-    JsonCodec = {JsonMod, maps:get(json_opts, Opts, [])},
+new_client(DirectoryUrl, #{ http_module := HttpMod } = Opts) ->
     HttpOpts = maps:get(http_opts, Opts, []),
-    HttpClient = acmerl_http:new_client(HttpMod, HttpOpts, JsonCodec),
+    HttpClient = acmerl_http:new_client(HttpMod, HttpOpts),
 
     case acmerl_http:get(HttpClient, DirectoryUrl) of
         {ok, _, Directory} ->
@@ -50,11 +50,11 @@ new_client(DirectoryUrl, #{ http_module := HttpMod
             Err
     end.
 
--spec new_account(client(), acmerl_json:json_term()) -> maybe_ok(account()).
+-spec new_account(client(), json_term()) -> maybe_ok(account()).
 new_account(Client, AccountOpts) ->
     new_account(Client, AccountOpts, {new_key, 'ES256'}).
 
--spec new_account(client(), acmerl_json:json_term(), AccountKeyOpts) ->
+-spec new_account(client(), json_term(), AccountKeyOpts) ->
     maybe_ok(account())
       when AccountKeyOpts :: {new_key, acmerl_jose:algo_name()}
                            | {key, acmerl_jose:key()}.
@@ -80,13 +80,13 @@ new_account(
             Err
     end.
 
--spec account_info(account()) -> acmerl_json:json_term().
+-spec account_info(account()) -> json_term().
 account_info(#account{info = Info}) -> Info.
 
 -spec account_key(account()) -> acmerl_jose:key().
 account_key(#account{key = Key}) -> Key.
 
--spec export_account(account()) -> acmerl_json:json_term().
+-spec export_account(account()) -> json_term().
 export_account(#account{ url = AccountUrl
                        , key = AccountKey
                        }) ->
@@ -95,7 +95,7 @@ export_account(#account{ url = AccountUrl
                                               }),
     Jwk#{<<"kid">> => AccountUrl}.
 
--spec import_account(acmerl_json:json_term()) -> maybe_ok(account()).
+-spec import_account(json_term()) -> maybe_ok(account()).
 import_account(#{<<"kid">> := AccountUrl} = Key) when is_binary(AccountUrl) ->
     case acmerl_jose:import_key(Key) of
         {ok, Jwk} ->
@@ -107,8 +107,8 @@ import_account(#{<<"kid">> := AccountUrl} = Key) when is_binary(AccountUrl) ->
 import_account(_) ->
     {error, malformed}.
 
--spec new_order(client(), account(), acmerl_json:json_term()) ->
-    maybe_ok(acmerl_json:json_term()).
+-spec new_order(client(), account(), json_term()) ->
+    maybe_ok(json_term()).
 new_order(
   #client{ directory = #{ <<"newOrder">> := NewOrderUrl } } = Client,
   #account{ } = Account,
@@ -119,8 +119,8 @@ new_order(
         {error, _} = Err -> Err
     end.
 
--spec order_authorizations(client(), account(), acmerl_json:json_term()) ->
-    maybe_ok([acmerl_json:json_term()]).
+-spec order_authorizations(client(), account(), json_term()) ->
+    maybe_ok([json_term()]).
 order_authorizations(
   #client{ } = Client,
   #account{ } = Account,
@@ -140,13 +140,13 @@ order_authorizations(
      ).
 
 -spec deploy_challenges(account(), acmerl_challenge:handler(),
-			acmerl_json:codec(), [acmerl_json:json_term()]) ->
+			[json_term()]) ->
 	  maybe_ok([acmerl_challenge:deployed()]).
 deploy_challenges(
   #account{ key = AccountKey },
-  Handler, JsonCodec, Authorizations
+  Handler, Authorizations
 ) ->
-    Thumbprint = acmerl_jose:thumbprint(AccountKey, JsonCodec),
+    Thumbprint = acmerl_jose:thumbprint(AccountKey),
     lists:foldl(
       fun(Auth, {ok, Deployed}) ->
         case acmerl_challenge:deploy(Handler, Thumbprint, Auth) of
@@ -177,7 +177,7 @@ validate_challenges(
     remove_deployed(Deployed, Handler),
     R.
 -spec finalize_and_fetch(client(), account(),
-			 Order ::acmerl_json:json_term(), CSR :: binary()) ->
+			 Order :: json_term(), CSR :: binary()) ->
 	  maybe_ok(PEM :: binary()).
 finalize_and_fetch(
   #client {} = Client,

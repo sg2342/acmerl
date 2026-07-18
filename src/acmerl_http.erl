@@ -1,5 +1,5 @@
 -module(acmerl_http).
--export([ new_client/3
+-export([ new_client/2
         , request/4
         , request_json/4
         , get/2
@@ -15,21 +15,20 @@
                           , Headers :: http_headers()
                           , Body :: binary()}
                      | {error, term()}.
--type response_body() :: {json, acmerl_json:json_term()}
+-type response_body() :: {json, acmerl:json_term()}
                        | {certificate_chain, binary()}
                        | {unknown, binary()}.
 -type request_error() :: {error, {http, http_headers(), response_body()}}
                        | {error, {network, term()}}.
 -type request_result() :: {ok, http_headers(), response_body()}
                         | request_error().
--type json_request_result() :: {ok, http_headers(), acmerl_json:json_term()}
+-type json_request_result() :: {ok, http_headers(), acmerl:json_term()}
                              | {ok, {certificate_chain, binary()}}
                              | request_error()
                              | {error, invalid_response}.
 
 -record(client, { module :: module()
                 , opts :: term()
-                , json_codec :: acmerl_json:codec()
                 }).
 
 -opaque client() :: #client{}.
@@ -42,19 +41,19 @@
 
 % API
 
--spec new_client(module(), term(), acmerl_json:codec()) -> client().
-new_client(Module, Opts, JsonCodec) ->
-    #client{ module = Module, opts = Opts, json_codec = JsonCodec }.
+-spec new_client(module(), term()) -> client().
+new_client(Module, Opts) ->
+    #client{ module = Module, opts = Opts }.
 
 -spec request(client(), http_method(), binary(), binary()) -> request_result().
 request(
-  #client{module = Module, opts = Opts, json_codec = JsonCodec},
+  #client{module = Module, opts = Opts},
   Method, URL, ReqBody
  ) ->
     ReqHeaders = headers_for(Method, ReqBody),
     case Module:request(Method, URL, ReqHeaders, ReqBody, Opts) of
         {ok, Status, RespHeaders, RespBody} ->
-            ParsedBody = parse_response(RespHeaders, RespBody, JsonCodec),
+            ParsedBody = parse_response(RespHeaders, RespBody),
             case Status >= 400 of
                 true -> {error, {http, RespHeaders, ParsedBody}};
                 false -> {ok, RespHeaders, ParsedBody}
@@ -83,9 +82,9 @@ get(Client, Url) -> request_json(Client, 'GET', Url, <<>>).
     when Client :: client()
        , NonceUrl :: binary()
        , Url :: binary()
-       , Payload :: acmerl_json:json_term() | empty
+       , Payload :: acmerl:json_term() | empty
        , AccountKey :: acmerl_jose:key()
-       , JwsHeaders :: #{binary() => acmerl_json:json_term()}
+       , JwsHeaders :: #{binary() => acmerl:json_term()}
        , Result :: json_request_result().
 post(Client, NonceUrl, Url, Payload, AccountKey, JwsHeaders) ->
     with_nonce(Client, NonceUrl, fun(Nonce) ->
@@ -97,7 +96,7 @@ post(Client, NonceUrl, Url, Payload, AccountKey, JwsHeaders) ->
        , NonceUrl :: binary()
        , Url :: binary()
        , AccountKey :: acmerl_jose:key()
-       , JwsHeaders :: #{binary() => acmerl_json:json_term()}
+       , JwsHeaders :: #{binary() => acmerl:json_term()}
        , Result :: json_request_result().
 post_as_get(Client, NonceUrl, Url, AccountKey, JwsHeaders) ->
     with_nonce(Client, NonceUrl, fun(Nonce) ->
@@ -116,12 +115,12 @@ headers_for('POST', Body) ->
     , ?ACCEPT_HEADER
     ].
 
-parse_response(Headers, Body, JsonCodec) ->
+parse_response(Headers, Body) ->
     case proplists:get_value(<<"content-type">>, Headers) of
         <<"application/json", _/binary>> ->
-            {json, acmerl_json:decode(Body, JsonCodec)};
+            {json, json:decode(Body)};
         <<"application/problem+json", _/binary>> ->
-            {json, acmerl_json:decode(Body, JsonCodec)};
+            {json, json:decode(Body)};
         <<"application/pem-certificate-chain", _/binary>> ->
 	    {certificate_chain, Body};
         _ ->
@@ -144,23 +143,23 @@ new_nonce(Client, NonceUrl) ->
     end.
 
 post_as_get1(
-  #client{ json_codec = JsonCodec } = Client,
+  #client{ } = Client,
   Nonce, Url, AccountKey, JwsHeaders
  ) ->
     EncodedPayload = <<>>,
     Headers = JwsHeaders#{ <<"url">> => Url
                          , <<"nonce">> => Nonce
                          },
-    Body = acmerl_jose:sign(EncodedPayload, AccountKey, Headers, JsonCodec),
+    Body = acmerl_jose:sign(EncodedPayload, AccountKey, Headers),
     request_json(Client, 'POST', Url, Body).
 
 post1(
-  #client{ json_codec = JsonCodec } = Client,
+  #client{ } = Client,
   Nonce, Url, Payload, AccountKey, JwsHeaders
  ) ->
-    EncodedPayload = acmerl_json:encode(Payload, JsonCodec),
+    EncodedPayload = iolist_to_binary(json:encode(Payload)),
     Headers = JwsHeaders#{ <<"url">> => Url
                          , <<"nonce">> => Nonce
                          },
-    Body = acmerl_jose:sign(EncodedPayload, AccountKey, Headers, JsonCodec),
+    Body = acmerl_jose:sign(EncodedPayload, AccountKey, Headers),
     request_json(Client, 'POST', Url, Body).

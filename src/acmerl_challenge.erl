@@ -18,7 +18,7 @@
 % API
 
 -spec deploy(handler(), Thumbprint :: binary(),
-	     Authorization :: acmerl_json:json_term()) ->
+	     Authorization :: acmerl:json_term()) ->
 	  {ok, deployed()} |
 	  {error, term()}.
 deploy(

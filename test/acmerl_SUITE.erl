@@ -22,7 +22,7 @@ groups() ->
     ].
 
 init_per_suite(Config) ->
-    {ok, Apps} = start_apps([jsone, inets, acmerl]),
+    {ok, Apps} = start_apps([inets, acmerl]),
     [{apps, Apps} | Config].
 
 end_per_suite(Config) ->
@@ -78,7 +78,7 @@ create_account_from_existing_key(Config) ->
         KeyFileName = iolist_to_binary(io_lib:format("~s.json", [Algo])),
         KeyFilePath = filename:join(DataDir, KeyFileName),
         {ok, KeyFileContent} = file:read_file(KeyFilePath),
-        JWK = jsone:decode(KeyFileContent),
+        JWK = json:decode(KeyFileContent),
 
         {ok, Key} = acmerl_jose:import_key(JWK),
         ?assertMatch(
@@ -94,7 +94,6 @@ create_account_from_existing_key(Config) ->
 create_order(Config) ->
     Client = proplists:get_value(client, Config),
     Account = proplists:get_value(account, Config),
-    JsonCodec = {acmerl_json_jsone, []},
     ChallengeHandler = {acmerl_challenge_fail, []},
 
     Identifiers = [ #{ <<"type">> => <<"dns">>
@@ -108,9 +107,8 @@ create_order(Config) ->
     {ok, Order} = acmerl:new_order(Client, Account, OrderOpts),
     {ok, Authorizations} = acmerl:order_authorizations(Client, Account, Order),
     ?assertEqual(length(Identifiers), length(Authorizations)),
-    {ok, Deployed} = acmerl:deploy_challenges(Account, ChallengeHandler,
-					      JsonCodec, Authorizations),
-    {error, max_poll_count_exceeded} =
+    {ok, Deployed} = acmerl:deploy_challenges(Account, ChallengeHandler, Authorizations),
+    {error, max_poll_exceeded} =
 	acmerl:validate_challenges(Client, Account, ChallengeHandler, Deployed),
     ok.
 
@@ -118,8 +116,8 @@ import_export_account(Config) ->
     Client = proplists:get_value(client, Config),
     Account = proplists:get_value(account, Config),
 
-    ExportedAccount = jsone:encode(acmerl:export_account(Account)),
-    {ok, ImportedAccount} = acmerl:import_account(jsone:decode(ExportedAccount)),
+    ExportedAccount = iolist_to_binary(json:encode(acmerl:export_account(Account))),
+    {ok, ImportedAccount} = acmerl:import_account(json:decode(ExportedAccount)),
 
     Identifiers = [ #{ <<"type">> => <<"dns">>
                      , <<"value">> => <<"example.com">>
@@ -157,7 +155,7 @@ create_account(Config) ->
     DataDir = proplists:get_value(data_dir, Config),
     KeyFilePath = filename:join(DataDir, "ES256.json"),
     {ok, KeyFileContent} = file:read_file(KeyFilePath),
-    JWK = jsone:decode(KeyFileContent),
+    JWK = json:decode(KeyFileContent),
     {ok, Key} = acmerl_jose:import_key(JWK),
 
     AccountOpts = #{<<"termsOfServiceAgreed">> => true},
@@ -166,9 +164,7 @@ create_account(Config) ->
     [{account, Account} | Config].
 
 client_opts() ->
-    #{ http_module => acmerl_http_inets
-     , json_module => acmerl_json_jsone
-     }.
+    #{ http_module => acmerl_http_inets }.
 
 % From: `rebar3 as test shell`
 % Execute: `acmerl_SUITE:gen_keys().` to generate test keys
@@ -179,9 +175,10 @@ gen_keys() ->
         KeyFileName = iolist_to_binary(io_lib:format("~s.json", [Algo])),
         KeyFilePath = filename:join("test/acmerl_SUITE_data", KeyFileName),
         Key = acmerl_jose:generate_key(Algo),
-        JWK = jsone:encode(acmerl_jose:export_key(Key, #{ with_algo => true
-                                                      , with_private => true
-                                                      })),
+        JWK = iolist_to_binary(
+		json:encode(acmerl_jose:export_key(Key, #{ with_algo => true
+							 , with_private => true
+							 }))),
         ok = file:write_file(KeyFilePath, JWK)
       end,
       ?SUPPORTED_ALGOS

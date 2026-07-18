@@ -1,9 +1,9 @@
 -module(acmerl_jose).
 -export([ generate_key/1
-        , sign/4
+        , sign/3
         , export_key/2
         , import_key/1
-        , thumbprint/2
+        , thumbprint/1
         ]).
 -export_type([algo_name/0, key/0, key_export_opts/0]).
 -include_lib("public_key/include/public_key.hrl").
@@ -31,16 +31,15 @@
 -spec generate_key(algo_name()) -> key().
 generate_key(AlgoName) -> generate_key1(algo_from_name(AlgoName)).
 
--spec sign(Payload, Key, ExtraHeaders, JsonCodec) -> Signature when
+-spec sign(Payload, Key, ExtraHeaders) -> Signature when
       Payload :: binary(),
       Key :: key(),
-      ExtraHeaders :: #{binary() => acmerl_json:json_term()},
-      JsonCodec :: acmerl_json:codec(),
+      ExtraHeaders :: #{binary() => acmerl:json_term()},
       Signature :: binary().
-sign(Payload, #key{algo = Algo, key = PrivKey}, ExtraHeaders, JsonCodec) ->
+sign(Payload, #key{algo = Algo, key = PrivKey}, ExtraHeaders) ->
     AlgoName = atom_to_binary(algo_name(Algo), latin1),
     Headers = ExtraHeaders#{<<"alg">> => AlgoName},
-    HeaderB64 = base64url:encode(acmerl_json:encode(Headers, JsonCodec)),
+    HeaderB64 = base64url:encode(json:encode(Headers)),
     PayloadB64 = base64url:encode(Payload),
     Message = <<HeaderB64/binary, $., PayloadB64/binary>>,
     RawSig = public_key:sign(Message, digest_type(Algo), PrivKey),
@@ -50,13 +49,13 @@ sign(Payload, #key{algo = Algo, key = PrivKey}, ExtraHeaders, JsonCodec) ->
               , <<"payload">> => PayloadB64
               , <<"signature">> => SigB64
               },
-    acmerl_json:encode(Bundle, JsonCodec).
+    iolist_to_binary(json:encode(Bundle)).
 
--spec export_key(key(), key_export_opts()) -> acmerl_json:json_term().
+-spec export_key(key(), key_export_opts()) -> acmerl:json_term().
 export_key(Key, Opts) ->
     export_key1(Key, normalize_key_export_opts(Opts)).
 
--spec import_key(acmerl_json:json_term()) -> {ok, key()} | {error, term()}.
+-spec import_key(acmerl:json_term()) -> {ok, key()} | {error, term()}.
 import_key(#{ <<"alg">> := AlgoName } = Key) ->
     try algo_from_name(AlgoName) of
         Algo -> import_key1(Algo, Key)
@@ -66,14 +65,14 @@ import_key(#{ <<"alg">> := AlgoName } = Key) ->
 import_key(_) ->
     {error, malformed}.
 
--spec thumbprint(Key, acmerl_json:codec()) -> binary() when
+-spec thumbprint(Key) -> binary() when
       Key :: key()
-           | {jwk, acmerl_json:json_term()}.
-thumbprint(#key{} = Key, JsonCodec) ->
-    thumbprint({jwk, export_key(Key, #{})}, JsonCodec);
-thumbprint({jwk, Jwk}, JsonCodec) ->
+           | {jwk, acmerl:json_term()}.
+thumbprint(#key{} = Key) ->
+    thumbprint({jwk, export_key(Key, #{})});
+thumbprint({jwk, Jwk}) ->
     CanonKey = strip_jwk_for_thumbprint(Jwk),
-    Json = acmerl_json:encode(CanonKey, JsonCodec),
+    Json = iolist_to_binary(json:encode(CanonKey)),
     base64url:encode(crypto:hash(sha256, Json)).
 
 % Private
