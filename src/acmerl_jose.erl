@@ -250,7 +250,8 @@ import_rsa(_, _) ->
     {error, malformed}.
 
 decode_rsa_param(X) ->
-    binary:decode_unsigned(base64:decode(X, #{mode => urlsafe})).
+    binary:decode_unsigned(
+      base64:decode(X, #{mode => urlsafe, padding => false})).
 
 import_ec(Algo, #{<<"crv">> := CurveName} = Key) ->
     try curve_from_name(CurveName) of
@@ -268,10 +269,10 @@ import_ec1(Algo, Curve, #{ <<"x">> := XB64
                          , <<"y">> := YB64
                          , <<"d">> := DB64
                          }) ->
-    X = base64:decode(XB64, #{mode => urlsafe}),
-    Y = base64:decode(YB64, #{mode => urlsafe}),
+    X = base64:decode(XB64, #{mode => urlsafe, padding => false}),
+    Y = base64:decode(YB64, #{mode => urlsafe, padding => false}),
     PublicKey = <<?EC_PUBLIC_MAGIC, X/binary, Y/binary>>,
-    PrivateKey = base64:decode(DB64, #{mode => urlsafe}),
+    PrivateKey = base64:decode(DB64, #{mode => urlsafe, padding => false}),
     SigningKey = #'ECPrivateKey'{ version = ?ECPrivateKeyVersion1
                                 , privateKey = PrivateKey
                                 , parameters = {namedCurve, Curve}
