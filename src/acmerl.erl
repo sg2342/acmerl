@@ -185,7 +185,8 @@ finalize_and_fetch(
   #{ <<"finalize">> := Url },
   CSR
  ) ->
-    case post(Client, Account, Url, #{<<"csr">> => base64url:encode(CSR)}) of
+    case post(Client, Account, Url,
+	      #{<<"csr">> => base64:encode(CSR, #{mode => urlsafe})}) of
 	{ok, _, #{ <<"status">> := <<"valid">>
 		 , <<"certificate">> := PemUrl }} ->
 	    case post_as_get(Client, Account, PemUrl) of

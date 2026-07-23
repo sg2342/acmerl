@@ -39,12 +39,13 @@ generate_key(AlgoName) -> generate_key1(algo_from_name(AlgoName)).
 sign(Payload, #key{algo = Algo, key = PrivKey}, ExtraHeaders) ->
     AlgoName = atom_to_binary(algo_name(Algo), latin1),
     Headers = ExtraHeaders#{<<"alg">> => AlgoName},
-    HeaderB64 = base64url:encode(json:encode(Headers)),
-    PayloadB64 = base64url:encode(Payload),
+    HeaderJson = iolist_to_binary(json:encode(Headers)),
+    HeaderB64 = base64:encode(HeaderJson, #{mode => urlsafe}),
+    PayloadB64 = base64:encode(Payload, #{mode => urlsafe}),
     Message = <<HeaderB64/binary, $., PayloadB64/binary>>,
     RawSig = public_key:sign(Message, digest_type(Algo), PrivKey),
     NormalizedSig = normalize_signature(Algo, RawSig),
-    SigB64 = base64url:encode(NormalizedSig),
+    SigB64 = base64:encode(NormalizedSig, #{mode => urlsafe}),
     Bundle = #{ <<"protected">> => HeaderB64
               , <<"payload">> => PayloadB64
               , <<"signature">> => SigB64
@@ -73,7 +74,7 @@ thumbprint(#key{} = Key) ->
 thumbprint({jwk, Jwk}) ->
     CanonKey = strip_jwk_for_thumbprint(Jwk),
     Json = iolist_to_binary(json:encode(CanonKey)),
-    base64url:encode(crypto:hash(sha256, Json)).
+    base64:encode(crypto:hash(sha256, Json), #{mode => urlsafe}).
 
 % Private
 
@@ -163,8 +164,8 @@ jwk(
     {X, Y} = ec_x_y(PublicKey),
     #{ <<"kty">> => <<"EC">>
      , <<"crv">> => curve_name(CurveParams)
-     , <<"x">> => base64url:encode(X)
-     , <<"y">> => base64url:encode(Y)
+     , <<"x">> => base64:encode(X, #{mode => urlsafe})
+     , <<"y">> => base64:encode(Y, #{mode => urlsafe})
      };
 jwk(
   #'RSAPrivateKey'{ version = 'two-prime'
@@ -194,7 +195,7 @@ jwk(
   #{with_private := true}
  ) ->
     Public = jwk(Key, #{with_private => false}),
-    Private = #{ <<"d">> => base64url:encode(PrivateKey) },
+    Private = #{ <<"d">> => base64:encode(PrivateKey, #{mode => urlsafe}) },
     maps:merge(Public, Private).
 
 maybe_add_algo(BaseKey, Algo, #{with_algo := true}) ->
@@ -203,7 +204,8 @@ maybe_add_algo(BaseKey, Algo, #{with_algo := true}) ->
 maybe_add_algo(BaseKey, _Algo, #{with_algo := false}) ->
     BaseKey.
 
-encode_rsa_param(X) -> base64url:encode(binary:encode_unsigned(X)).
+encode_rsa_param(X) ->
+    base64:encode(binary:encode_unsigned(X), #{mode => urlsafe}).
 
 int_to_bin(Int, Width) -> <<Int:Width>>.
 
@@ -248,7 +250,7 @@ import_rsa(_, _) ->
     {error, malformed}.
 
 decode_rsa_param(X) ->
-    binary:decode_unsigned(base64url:decode(X)).
+    binary:decode_unsigned(base64:decode(X, #{mode => urlsafe})).
 
 import_ec(Algo, #{<<"crv">> := CurveName} = Key) ->
     try curve_from_name(CurveName) of
@@ -266,10 +268,10 @@ import_ec1(Algo, Curve, #{ <<"x">> := XB64
                          , <<"y">> := YB64
                          , <<"d">> := DB64
                          }) ->
-    X = base64url:decode(XB64),
-    Y = base64url:decode(YB64),
+    X = base64:decode(XB64, #{mode => urlsafe}),
+    Y = base64:decode(YB64, #{mode => urlsafe}),
     PublicKey = <<?EC_PUBLIC_MAGIC, X/binary, Y/binary>>,
-    PrivateKey = base64url:decode(DB64),
+    PrivateKey = base64:decode(DB64, #{mode => urlsafe}),
     SigningKey = #'ECPrivateKey'{ version = ?ECPrivateKeyVersion1
                                 , privateKey = PrivateKey
                                 , parameters = {namedCurve, Curve}

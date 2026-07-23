@@ -47,6 +47,7 @@ deploy1([#{ <<"type">> := Type, <<"url">> := Url, <<"token">> := Token }|_],
 deploy2({ok, RemoveArg}, Url) -> {ok, {Url, RemoveArg}};
 deploy2({error, _} = Error, _) -> Error.
 
-key_auth(<<"dns-01">>, V) -> base64url:encode(crypto:hash(sha256, V));
+key_auth(<<"dns-01">>, V) ->
+    base64:encode(crypto:hash(sha256, V), #{mode => urlsafe});
 key_auth(<<"tls-alpn-01">>, V) -> crypto:hash(sha256, V);
 key_auth(_, V) -> V.

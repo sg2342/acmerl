@@ -1,4 +1,1 @@
-[{<<"base64url">>,
-  {git,"https://github.com/dvv/base64url",
-       {ref,"bf1360685da704c8453aba2268c4698c959d2ba4"}},
-  0}].
+[].

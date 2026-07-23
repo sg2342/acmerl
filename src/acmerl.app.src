@@ -1,12 +1,11 @@
 {application, acmerl,
  [{description, "ACME client for Erlang"},
-  {vsn, "0.1.0"},
+  {vsn, git},
   {registered, []},
   {applications,
    [ kernel
    , stdlib
    , public_key
-   , base64url
    ]},
   {env,[{max_poll, 10}]},
   {modules, []},
