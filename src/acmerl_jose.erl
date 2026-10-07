@@ -40,12 +40,12 @@ sign(Payload, #key{algo = Algo, key = PrivKey}, ExtraHeaders) ->
     AlgoName = atom_to_binary(algo_name(Algo), latin1),
     Headers = ExtraHeaders#{<<"alg">> => AlgoName},
     HeaderJson = iolist_to_binary(json:encode(Headers)),
-    HeaderB64 = base64:encode(HeaderJson, #{mode => urlsafe}),
-    PayloadB64 = base64:encode(Payload, #{mode => urlsafe}),
+    HeaderB64 = base64:encode(HeaderJson, #{mode => urlsafe, padding => false}),
+    PayloadB64 = base64:encode(Payload, #{mode => urlsafe, padding => false}),
     Message = <<HeaderB64/binary, $., PayloadB64/binary>>,
     RawSig = public_key:sign(Message, digest_type(Algo), PrivKey),
     NormalizedSig = normalize_signature(Algo, RawSig),
-    SigB64 = base64:encode(NormalizedSig, #{mode => urlsafe}),
+    SigB64 = base64:encode(NormalizedSig, #{mode => urlsafe, padding => false}),
     Bundle = #{ <<"protected">> => HeaderB64
               , <<"payload">> => PayloadB64
               , <<"signature">> => SigB64
@@ -74,7 +74,7 @@ thumbprint(#key{} = Key) ->
 thumbprint({jwk, Jwk}) ->
     CanonKey = strip_jwk_for_thumbprint(Jwk),
     Json = iolist_to_binary(json:encode(CanonKey)),
-    base64:encode(crypto:hash(sha256, Json), #{mode => urlsafe}).
+    base64:encode(crypto:hash(sha256, Json), #{mode => urlsafe, padding => false}).
 
 % Private
 
@@ -164,8 +164,8 @@ jwk(
     {X, Y} = ec_x_y(PublicKey),
     #{ <<"kty">> => <<"EC">>
      , <<"crv">> => curve_name(CurveParams)
-     , <<"x">> => base64:encode(X, #{mode => urlsafe})
-     , <<"y">> => base64:encode(Y, #{mode => urlsafe})
+     , <<"x">> => base64:encode(X, #{mode => urlsafe, padding => false})
+     , <<"y">> => base64:encode(Y, #{mode => urlsafe, padding => false})
      };
 jwk(
   #'RSAPrivateKey'{ version = 'two-prime'
@@ -195,7 +195,7 @@ jwk(
   #{with_private := true}
  ) ->
     Public = jwk(Key, #{with_private => false}),
-    Private = #{ <<"d">> => base64:encode(PrivateKey, #{mode => urlsafe}) },
+    Private = #{ <<"d">> => base64:encode(PrivateKey, #{mode => urlsafe, padding => false}) },
     maps:merge(Public, Private).
 
 maybe_add_algo(BaseKey, Algo, #{with_algo := true}) ->
@@ -205,7 +205,7 @@ maybe_add_algo(BaseKey, _Algo, #{with_algo := false}) ->
     BaseKey.
 
 encode_rsa_param(X) ->
-    base64:encode(binary:encode_unsigned(X), #{mode => urlsafe}).
+    base64:encode(binary:encode_unsigned(X), #{mode => urlsafe, padding => false}).
 
 int_to_bin(Int, Width) -> <<Int:Width>>.
 
